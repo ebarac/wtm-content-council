@@ -32,7 +32,7 @@ It never calculates, estimates or rounds a statistic itself. Every claim in a re
 | Source | What | Coverage | Notes |
 |---|---|---|---|
 | Metricool - Instagram reels | Caption, permalink, reach, views, saves, shares, comments, likes, view rate, average watch time, paid reach, spend | Jan 2024 - now | Retention (IGRE27) returns null, so use IGRE24 and IGRE28 instead. Do not use deprecated IGRE13 or IGRE15 |
-| Metricool - Instagram posts (carousels) | Caption, permalink, type, plus metrics to be confirmed in step 0 | Jan 2024 - now | Check which metric fields are available before mapping |
+| Metricool - Instagram posts (carousels and images) | Caption, permalink, type, reach, views, saves, shares, comments, likes, paid reach, spend | Jan 2024 - now | Metricool has no separate carousel connector. Carousels and images share the "posts" connector. Field mapping confirmed 23 Sep 2026, see section 4 |
 | Metricool - Instagram stories | Reach, replies, exits, taps forward and back | From connection date onwards only | Excluded from all historical analysis. Reported as live data only |
 | ig-attribution (Supabase) | ManyChat keyword triggers and applications, linked to posts | Wherever attribution data exists | Used for conversion scoring in v1.1. Report how much of the history it covers |
 
@@ -46,15 +46,28 @@ It never calculates, estimates or rounds a statistic itself. Every claim in a re
 
 ## 3. Step 0 - confirm before building
 
-These must be answered before any code is written.
+Status as of 23 Sep 2026: questions 1 and 2 are answered. Question 3 is still open.
 
-1. **How Claude Code pulls the data.** Decide between:
-   - Option A: Metricool REST API, called by a script. This needs an API token, and possibly a higher Metricool plan.
-   - Option B: the Metricool MCP connector, set up inside Claude Code.
+1. **How Claude Code pulls the data - answered: Option B, the Metricool MCP connector.** Confirmed working in Claude Code (Terminal) on 23 Sep 2026: brand settings, reels pull and available-metrics calls all returned correct data for brand 3304707. No API token or plan upgrade needed for this data.
 
-   Prefer Option A if it's available, because a script gives the same result every run. Option B is the fallback.
-2. **Carousel fields.** Run the available-metrics call for the Instagram posts connector and record which fields exist.
-3. **Attribution join.** Confirm which field links attribution records to posts (permalink, shortcode or media ID), and the date attribution records start.
+   **One build requirement this sets:** the tool's response must be written to disk by the code in the same step it's fetched, with no manual retyping or copy-paste in between, even by Claude itself. The test run had Claude Code retype the reels response by hand as a one-off, which worked for a 22-row test but is not an acceptable pattern for the real pull. Step 2 of the build (section 11) must write straight from the tool call to the file.
+2. **Carousel fields - answered.** There is no separate carousel connector. Carousels and images both come through the Instagram "posts" connector, with IGPO07 (Type) distinguishing them. Full field list saved to `docs/metricool_posts_fields.json`. Mapping to use, confirmed 23 Sep 2026:
+
+   | content_metrics_snapshots column | Metricool field |
+   |---|---|
+   | reach | IGPO14 |
+   | views | IGPO28 |
+   | saves | IGPO15 |
+   | shares | IGPO27 |
+   | comments | IGPO08 |
+   | likes | IGPO13 |
+   | reach_paid | IGPO19 |
+   | spend | IGPO26 |
+
+   Also usable: IGPO01-06 (date, content, post ID, image, URL), IGPO07 (type), IGPO10 (engagement), IGPO12 (interactions organic), IGPO29 (follows), IGPO17/22/23/24/25 (other paid fields).
+
+   **Do not use** (Metricool marks these deprecated): IGPO09, IGPO11, IGPO16, IGPO18, IGPO20, IGPO21.
+3. **Attribution join - still open.** Confirm which field links attribution records to posts (permalink, shortcode or media ID), and the date attribution records start.
 
 ---
 
@@ -339,7 +352,7 @@ Each step has a check that must pass before moving on.
 
 | Step | Work | Check before moving on |
 |---|---|---|
-| 0 | Answer the section 3 questions | The data access route is chosen and the carousel fields are listed |
+| 0 | Answer the section 3 questions | Done 23 Sep 2026 for questions 1 and 2. Question 3 (attribution join) still open, not blocking the migrations |
 | 1 | Migrations for the section 4 tables (dev) | Edo has reviewed and applied them |
 | 2 | Pull all history from Jan 2024, one month at a time | Monthly post counts roughly match Metricool's web app. The gap months show as gaps. No duplicate permalinks |
 | 3 | Add the section 6 flags | Every example case in section 6 is flagged correctly |
@@ -361,6 +374,6 @@ Each step has a check that must pass before moving on.
 ## 12. Open items
 
 1. **App launch date.** Edo to confirm. Currently a March 2026 placeholder.
-2. **Metricool API access.** Depends on the step 0 answer. May require a plan upgrade.
-3. **Attribution coverage dates.** Needed for the v1.1 conversion scoring.
+2. ~~Metricool API access.~~ Resolved 23 Sep 2026: the MCP connector covers everything needed, on the current plan, no upgrade required.
+3. **Attribution coverage dates.** Needed for the v1.1 conversion scoring. Still open, see section 3.
 4. **Human-tagged test sample.** 40 posts need tagging by hand before step 4 can run.
