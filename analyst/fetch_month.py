@@ -8,7 +8,7 @@ halved again if still too big. Reels and posts use the same windows, so each
 window can be loaded and verified on its own.
 
 Each window is then fetched with fetch_metricool.fetch(), which keeps its own
-3-attempt retry for ordinary failures.
+retry (fetch_metricool.ATTEMPTS) for ordinary failures.
 
 The last line of output lists the windows, for the caller to load and verify:
     WINDOWS 2025-03-01:2025-03-15 2025-03-16:2025-03-31
@@ -42,10 +42,11 @@ def daily_counts(start: date, end: date, model: str) -> tuple[Counter, Counter]:
         try:
             text = fm.extract_result(fm.run_headless(expected, model), expected)
             rows = json.loads(text)["rows"]
+            print(f"[evolution {start}..{end}] counts fetched on attempt {attempt}/{fm.ATTEMPTS}", flush=True)
             break
         except Exception as exc:  # noqa: BLE001 - same retry policy as fetch_metricool
             last_error = exc
-            print(f"counts attempt {attempt}/{fm.ATTEMPTS} failed: {exc}", file=sys.stderr)
+            print(f"[evolution {start}..{end}] attempt {attempt}/{fm.ATTEMPTS} failed: {exc}", file=sys.stderr, flush=True)
             if attempt < fm.ATTEMPTS:
                 time.sleep(10 * 2 ** (attempt - 1))
     else:
@@ -89,11 +90,11 @@ def main() -> None:
     reels, posts = daily_counts(a.start, a.end, a.model)
     windows = plan(a.start, a.end, reels, posts)
     print(f"Metricool counts {a.start}..{a.end}: {sum(reels.values())} reels, {sum(posts.values())} posts "
-          f"-> {len(windows)} window(s)")
+          f"-> {len(windows)} window(s)", flush=True)
     for s, e in windows:
         fm.fetch("reels", s, e, a.model)
         fm.fetch("posts", s, e, a.model)
-    print("WINDOWS " + " ".join(f"{s}:{e}" for s, e in windows))
+    print("WINDOWS " + " ".join(f"{s}:{e}" for s, e in windows), flush=True)
 
 
 if __name__ == "__main__":

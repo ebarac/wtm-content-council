@@ -37,7 +37,7 @@ FIELDS = {
               "IGPO26", "IGPO27", "IGPO28", "IGPO29"],
 }
 
-ATTEMPTS = 3
+ATTEMPTS = 5
 
 
 def london_bounds(start: date, end: date) -> tuple[str, str]:
@@ -132,7 +132,7 @@ def fetch(connector: str, start: date, end: date, model: str) -> Path:
             break
         except Exception as exc:  # noqa: BLE001 - every failure is retried, then reported
             last_error = exc
-            print(f"attempt {attempt}/{ATTEMPTS} failed: {exc}", file=sys.stderr)
+            print(f"[{connector} {start}..{end}] attempt {attempt}/{ATTEMPTS} failed: {exc}", file=sys.stderr, flush=True)
             if attempt < ATTEMPTS:
                 time.sleep(10 * 2 ** (attempt - 1))
     else:
@@ -153,7 +153,7 @@ def fetch(connector: str, start: date, end: date, model: str) -> Path:
         "raw_file": raw_path.name,
     }
     (RAW_DIR / f"{stem}.meta.json").write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
-    print(f"saved {n_rows} rows -> {raw_path}")
+    print(f"[{connector} {start}..{end}] saved {n_rows} rows on attempt {attempt}/{ATTEMPTS} -> {raw_path}", flush=True)
     return raw_path
 
 
