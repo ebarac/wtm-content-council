@@ -1,2 +1,5 @@
 # Pulled Metricool data - never commit
 data/
+
+# Supabase CLI local link state
+supabase/.temp/
