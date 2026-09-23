@@ -38,10 +38,12 @@ It never calculates, estimates or rounds a statistic itself. Every claim in a re
 
 ### Known data issues
 
-1. **April to October 2025 is missing in Metricool.** This is a sync gap, not a content gap. Mark it as a gap period and draw no conclusions from it. No baseline window may span it.
-2. **Response size cap.** The Metricool connector caps responses at about 25k tokens. Pull one calendar month per request, and split further if a month still fails.
-3. **Metricool returns occasional server errors (502/500).** Retry with backoff, 3 attempts per request. If a month still fails, stop the run and report which month failed. Never continue with a hole in the data.
-4. **View rate (IGRE28) is empty for older reels.** Confirmed 23 Sep 2026: all 32 reels' from October 2024 have reach, views, likes and average watch time populated, but no view_rate. Recent reels (Aug/Sep 2026) do have it. The exact date this metric starts being populated is unknown and should be found during the full history pull (section 11, step 2). Until then, any pattern score using view_rate (section 7.4, "Authority" and "Growth" secondary metrics) must treat null view_rate as missing data, not zero, and report the class as "early signal" or unscored rather than penalising older content for a metric that never existed for it.
+1. **April to October 2025 is missing in Metricool.** Confirmed precisely from the full history pull, 23 Sep 2026: the last post before the gap is 14 April 2025 (14:08 London time), and the first post after it is 9 October 2025 (21:58 London time). So the gap is 15 April to 8 October 2025 inclusive, with no post activity from Metricool on any day in between, cross-checked against Metricool's own daily account-level totals as well as the per-post pull. This is a sync gap, not a content gap. Mark it as a gap period and draw no conclusions from it. No baseline window may span it.
+
+2. **A second, more serious gap: 26 April to 2 June 2026.** Metricool returns completely empty for this window (both the per-post pull and Metricool's own daily counts), the same signature as the 2025 gap. But Edo confirmed 23 Sep 2026 that posts **were** actually published on Instagram during this window. Unlike the 2025 gap, this means `content_posts` is missing real posts entirely for this period, not just missing metrics on posts we have, and Metricool cannot supply them (already confirmed empty). **The post count for this window is permanently incomplete unless the missing posts are added another way** (e.g. manually, from the Instagram account directly). Add a `data_gaps` row for it with this caveat in the reason field, and treat any conclusion touching this window as based on incomplete data, more so than the 2025 gap.
+3. **Response size cap.** The Metricool connector caps responses at about 25k tokens. Pull one calendar month per request, and split further if a month still fails. (Confirmed and automated 23 Sep 2026: `analyst/fetch_month.py` estimates size from Metricool's own daily counts before fetching, at roughly 950 bytes/row, and proactively splits any month estimated near or over ~32KB, rather than waiting for a failure.)
+4. **Metricool returns occasional server errors (502/500).** Retry with backoff, 3 attempts per request. If a month still fails, stop the run and report which month failed. Never continue with a hole in the data. (Revised 23 Sep 2026: retries increased to 5 attempts, same backoff, after repeated flaky failures from the headless fetch session itself, not from Metricool. Every log line now records which connector and date range it belongs to.)
+5. **View rate (IGRE28) is empty for older reels.** Fully confirmed by the complete history pull, 23 Sep 2026: view_rate is populated for every reel from 9 October 2025 onward (the first post-gap post), and absent for every reel up to and including 14 April 2025 (the last pre-gap post). Because the entire transition window falls inside the Metricool sync gap, the exact date Metricool started providing this metric cannot be determined from available data, and no further pull will resolve it. Any pattern score using view_rate must treat it as unavailable before 15 April 2025 and available from 9 October 2025 onward, and must not penalise pre-gap content for lacking it.
 
 ---
 
@@ -94,9 +96,9 @@ One row per Instagram post.
 | format | text | reel, carousel, image or story |
 | posted_at | timestamptz | |
 | caption | text | |
-| cta_keyword | text | Found by code using the pattern "Comment[:]? WORD" (e.g. REBUILT, VIP, CREATINE). Null if none |
+| cta_keyword | text | Found by code matching "Comment[:]? " followed by a word from a fixed allowlist, matched case-insensitively since the ManyChat trigger itself isn't case-sensitive. **Not** a generic "any word after Comment" pattern: that catches ordinary phrases like "comment below" and "comment or" as false positives (found during the full history pull, 23 Sep 2026). **Allowlist confirmed by Edo, 23 Sep 2026** (21 words, from a full scan of all 773 captions): MASTERCLASS, THRIVE, REBUILT, QUIZ, WAITLIST, VIP, METHOD, LEAN, SUMMER, BF24, FRIDAY, LIFT, SUMMIT, CHEATSHEET, MENOSLEEP, APPLY, CREATINE, STAGES, STRONG, BRAIN, PROTEIN. Every other word found in the scan (including TEST, JOI, HMC, TUSHY, WILDTYPE, and all single-occurrence words) is deliberately excluded, either as ordinary language or as unconfirmed. **When a caption contains more than one allowlisted keyword** (confirmed 23 Sep 2026, 5 posts found: 4 offer a free lead magnet via one keyword or a paid programme via another, e.g. "Comment STRONG... Or comment VIP..."; 1 offers the same high-ticket ask under two interchangeable keywords), **store whichever keyword appears first in the caption.** Decided rather than building a priority order or a multi-value field, since this affects under 1% of posts and "first mentioned" is deterministic. Null if none |
 | is_partnership | bool | See section 6 |
-| is_boosted | bool | True if paid reach > 0 or spend > 0 |
+| is_boosted | bool | True if paid reach > 0 or spend > 0. **Known limitation, confirmed 23 Sep 2026:** across all 855 snapshots loaded in the full history pull, paid reach and spend are empty on every single row, with no exceptions. This is consistent with Meta Ads not being connected to Metricool for this account, not with nothing ever being boosted, and it can't be told apart from here. Every post will read as not boosted regardless of whether it actually was. Report this as "unable to verify" in the data-quality section (section 9), not as a confirmed clean result |
 | duplicate_group_id | uuid | Null unless the post is a duplicate |
 | in_data_gap | bool | True if the post falls inside a known gap period |
 | stage_id | int | Links to account_stages |
@@ -196,6 +198,7 @@ A possible v2 addition: estimate filming style for old posts from the thumbnail 
 
 ### Tagging method
 
+0. **Posts with no caption can't be tagged.** Confirmed 23 Sep 2026: 5 of 773 posts have an empty caption (C38F9xWsQzM, C4S-OhoM8Q0, DFv6lmvsu1r, DG39jAsM_1n, DICA-REsDMt). These are skipped by the tagger entirely rather than guessed at, get no row in `content_tags` for any taxonomy version, and are excluded from every pattern score. They still count in raw post totals and data-quality reporting.
 1. Only posts that have no tag for the current taxonomy version are tagged.
 2. Captions are sent in batches of 20.
 3. The output must match a fixed JSON format and be checked against it. Anything that fails the check is retried once, then marked for human review.
@@ -209,7 +212,7 @@ A possible v2 addition: estimate filming style for old posts from the thumbnail 
 |---|---|---|
 | Partnership | Caption contains `#ad`, a hashtag ending in "partner" (e.g. #humannpartner, #ritualpartner), or "Partner" after a brand name (e.g. MitoQPartner). A manual override table handles missed cases | Removed from the main analysis. Goes to the partnership report only |
 | Boosted | Paid reach > 0 or spend > 0 | Removed from the main analysis and listed in the data-quality section. Expected to be zero |
-| Duplicate | Same caption after normalising (lowercase, whitespace trimmed) posted within 7 days | Merged into one record using the average of the copies' metrics, and flagged. The group is listed in the data-quality section as a repost test or posting error |
+| Duplicate | Same caption after normalising (lowercase, whitespace trimmed) posted within 7 days, **and the same format** (reel/carousel/image). **Fixed 23 Sep 2026:** a same-caption pair spanning formats (a reel and a carousel, 14 and 18 Feb 2025) was found grouped together during step 3, before this rule was tightened. Averaging a reel's metrics with a carousel's is meaningless, since they don't share the same metric set (view_rate and avg_watch_time only exist for reels). Two posts with identical captions in different formats are never the same duplicate group, however close in time | Merged into one record using the average of the copies' metrics, and flagged. The group is listed in the data-quality section as a repost test or posting error |
 | Data gap | Post date falls inside a data_gaps period | Excluded from baselines and pattern scores |
 | Too new | Posted less than 7 days before the run | Shown under "early reads". Not included in pattern scores |
 
@@ -284,7 +287,9 @@ Compare a group's score in older content (more than 12 months old) with its scor
 | 1. Cohort launch | 2024-01-01 | 2024-06-30 | Growth |
 | 2. Evergreen PPP | 2024-07-01 | 2025-09-30 | Growth and authority |
 | 3. Multi-product | 2025-10-01 | 2026-05-31 | Conversion across several offers |
-| 4. High-ticket (Rebuilt, VIP/Apply) | 2026-06-01 | Open | Conversion |
+| 4. High-ticket (Rebuilt, VIP/Apply) | 2026-06-28 | Open | Conversion |
+
+**Stage 4 boundary, confirmed 23 Sep 2026:** the original placeholder date (1 June 2026, the month Rebuilt is understood to have launched) predates any actual sales CTA. The first "Comment REBUILT" appears 28 June 2026 (reel DaJdAp6M1bi), "Comment VIP" the next day, and "Comment APPLY" not until 27 July 2026. Confirmed and moved to 28 June 2026, the first date with real conversion language, based on the loaded post data rather than the launch-month estimate. This also requires re-running `content_posts.stage_id` assignment for any post between 1-27 June 2026, which will move from stage 4 to stage 3 under the corrected boundary.
 
 ### Business events (business_events)
 
@@ -303,7 +308,7 @@ Compare a group's score in older content (more than 12 months old) with its scor
 
 1. **Proposing boundaries.** From the tags, the Analyst builds a monthly breakdown of content type mix, posting frequency, and when each CTA keyword first appeared. Where the data points to a different boundary from the table above, it proposes a change. Edo confirms before anything is updated.
 2. **Finding launch windows.** A week is proposed as part of a launch window if its share of conversion posts is at least twice that stage's average. Nearby weeks are merged into one window, and each window is matched to the closest business event. Windows are saved as "proposed" until Edo confirms them.
-3. **The June 2024 peak.** The 6.4M reach reel on 14 June 2024 sits on the boundary between Stage 1 and Stage 2. The account history report must say which stage it fits better and why.
+3. **The June 2024 peak.** The reel posted 14 June 2024, 22:11 London time (permalink C8NlpM4sUkM), sits on the boundary between Stage 1 and Stage 2. Loaded reach as of 23 Sep 2026: 5,620,704. (An earlier informal mention in this project put this at "6.4M reach" before the full pull; the loaded database figure is authoritative, not that earlier estimate, whether the difference is reach continuing to grow after posting or simply an inaccurate earlier read.) The account history report must say which stage this post fits better and why.
 
 ---
 
@@ -366,7 +371,7 @@ Each step has a check that must pass before moving on.
 | 0 | Answer the section 3 questions | Done 23 Sep 2026, all three answered. Question 3's answer means v1.1 conversion scoring is deferred, not that anything here is blocked |
 | 1 | Migrations for the section 4 tables (dev) | Done 23 Sep 2026. All 10 tables applied to `wtm-attribution` (content schema), seed data confirmed matching section 8, shortcode and content_tags uniqueness constraints added and applied. Public schema and content_registry untouched throughout |
 | 2 | Pull all history from Jan 2024, one month at a time | Monthly post counts roughly match Metricool's web app. The gap months show as gaps. No duplicate permalinks |
-| 3 | Add the section 6 flags | Every example case in section 6 is flagged correctly |
+| 3 | **Done 23 Sep 2026, all sub-steps.** 3A: allowlist confirmed (section 4). 3B: all 5 flags set on all 773 posts (section 6, including a mid-step fix requiring duplicates to match format, and 1 manual partnership override). 3C: second `data_gaps` row inserted. 3D: stage 4 boundary moved to 2026-06-28 and applied | Every example case in section 6 flagged correctly, confirmed by Claude Code's own self-checks before writing |
 | 4 | Tag a test sample: the model tags 40 posts that Edo or Jessica have already tagged by hand | Content type matches the human tag at least 80% of the time. If not, adjust the rules and run the sample again |
 | 5 | Tag the full history | No failed format checks remain unreviewed. Low-confidence tags are listed |
 | 6 | Build the scoring (section 7), with unit tests on a small fixed dataset | Tests pass. The 12 Sep 2026 vagus nerve reel scores well above 1.0 on reach for its period |
