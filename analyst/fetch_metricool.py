@@ -72,7 +72,10 @@ def extract_result(events: list[dict], expected_args: dict) -> str:
     calls = {}
     results = {}
     for e in events:
-        content = e.get("message", {}).get("content", [])
+        message = e.get("message")
+        if not isinstance(message, dict):  # some event types carry a plain-string message
+            continue
+        content = message.get("content", [])
         if not isinstance(content, list):
             continue
         for c in content:
