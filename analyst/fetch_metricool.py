@@ -31,7 +31,7 @@ RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
 # Field order here is the column order of every returned row.
 FIELDS = {
     "reels": ["IGRE02", "IGRE03", "IGRE06", "IGRE11", "IGRE23", "IGRE12", "IGRE21",
-              "IGRE07", "IGRE24", "IGRE28", "IGRE16", "IGRE20"],
+              "IGRE07", "IGRE24", "IGRE28", "IGRE16", "IGRE20", "IGRE10"],
     "posts": ["IGPO01", "IGPO02", "IGPO03", "IGPO04", "IGPO05", "IGPO06", "IGPO07",
               "IGPO08", "IGPO10", "IGPO12", "IGPO13", "IGPO14", "IGPO15", "IGPO19",
               "IGPO26", "IGPO27", "IGPO28", "IGPO29"],

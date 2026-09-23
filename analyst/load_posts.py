@@ -32,7 +32,7 @@ TZ = ZoneInfo("Europe/London")
 METRICS = {
     "reels": {
         "reach": "IGRE11", "views": "IGRE23", "saves": "IGRE12", "shares": "IGRE21",
-        "comments": "IGRE07", "likes": None, "view_rate": "IGRE28", "avg_watch_time": "IGRE24",
+        "comments": "IGRE07", "likes": "IGRE10", "view_rate": "IGRE28", "avg_watch_time": "IGRE24",
         "reach_paid": "IGRE16", "spend": "IGRE20",
     },
     "posts": {
@@ -94,6 +94,10 @@ def build_records(raw_path: Path) -> tuple[dict, list[dict]]:
     meta = json.loads(raw_path.with_name(raw_path.stem + ".meta.json").read_text(encoding="utf-8"))
     connector, fields = meta["connector"], meta["fields"]
     rows = json.loads(raw_path.read_text(encoding="utf-8"))["rows"]
+    needed = {f for f in METRICS[connector].values() if f} | set(POST_FIELDS[connector].values())
+    missing = sorted(needed - set(fields))
+    if missing:
+        raise ValueError(f"{raw_path.name} was fetched without {missing}; re-fetch it")
 
     records, seen = [], {}
     for values in rows:
