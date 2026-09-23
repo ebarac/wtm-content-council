@@ -41,6 +41,7 @@ It never calculates, estimates or rounds a statistic itself. Every claim in a re
 1. **April to October 2025 is missing in Metricool.** This is a sync gap, not a content gap. Mark it as a gap period and draw no conclusions from it. No baseline window may span it.
 2. **Response size cap.** The Metricool connector caps responses at about 25k tokens. Pull one calendar month per request, and split further if a month still fails.
 3. **Metricool returns occasional server errors (502/500).** Retry with backoff, 3 attempts per request. If a month still fails, stop the run and report which month failed. Never continue with a hole in the data.
+4. **View rate (IGRE28) is empty for older reels.** Confirmed 23 Sep 2026: all 32 reels' from October 2024 have reach, views, likes and average watch time populated, but no view_rate. Recent reels (Aug/Sep 2026) do have it. The exact date this metric starts being populated is unknown and should be found during the full history pull (section 11, step 2). Until then, any pattern score using view_rate (section 7.4, "Authority" and "Growth" secondary metrics) must treat null view_rate as missing data, not zero, and report the class as "early signal" or unscored rather than penalising older content for a metric that never existed for it.
 
 ---
 
