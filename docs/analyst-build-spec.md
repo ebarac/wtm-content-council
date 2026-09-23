@@ -115,6 +115,8 @@ One row per post per pull. Keep every snapshot, because metrics keep growing aft
 ### content_tags
 Holds the tagging results.
 
+**Uniqueness (applied 23 Sep 2026):** unique on `(post_id, taxonomy_version, tagged_by)`. This lets an LLM tag and a human tag coexist for the same post and version, but blocks a second tag from the same source for the same post and version, for example an LLM retry, or a second human correction. **This means the tagging step and the human-override path in Step 4/5 must upsert (`insert ... on conflict (post_id, taxonomy_version, tagged_by) do update`), not plain insert**, or a retry will fail outright.
+
 | Column | Notes |
 |---|---|
 | post_id, taxonomy_version | |
@@ -133,6 +135,7 @@ Holds the tagging results.
 | business_events | Date, event name, whether the date is approximate |
 | launch_windows | Start date, end date, related event, status (proposed or confirmed) |
 | data_gaps | Start date, end date, reason |
+| partnership_overrides | Manual corrections to the caption-based partnership detection in section 6. Keyed by permalink, no foreign key to content_posts by design (so an override can be set before a post is pulled, and survives a reload). Added during the build, 23 Sep 2026 |
 | analyst_runs | Run date, settings used, report links, and a pass/fail result for each data check |
 | pattern_scores | Run ID, what was grouped (e.g. topic), the group value, stage, post count, weighted post count, score for each metric, and class (evergreen, faded, emerging or early signal) |
 
@@ -360,7 +363,7 @@ Each step has a check that must pass before moving on.
 | Step | Work | Check before moving on |
 |---|---|---|
 | 0 | Answer the section 3 questions | Done 23 Sep 2026, all three answered. Question 3's answer means v1.1 conversion scoring is deferred, not that anything here is blocked |
-| 1 | Migrations for the section 4 tables (dev) | Edo has reviewed and applied them |
+| 1 | Migrations for the section 4 tables (dev) | Done 23 Sep 2026. All 10 tables applied to `wtm-attribution` (content schema), seed data confirmed matching section 8, shortcode and content_tags uniqueness constraints added and applied. Public schema and content_registry untouched throughout |
 | 2 | Pull all history from Jan 2024, one month at a time | Monthly post counts roughly match Metricool's web app. The gap months show as gaps. No duplicate permalinks |
 | 3 | Add the section 6 flags | Every example case in section 6 is flagged correctly |
 | 4 | Tag a test sample: the model tags 40 posts that Edo or Jessica have already tagged by hand | Content type matches the human tag at least 80% of the time. If not, adjust the rules and run the sample again |
