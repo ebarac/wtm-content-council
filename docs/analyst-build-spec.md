@@ -34,7 +34,7 @@ It never calculates, estimates or rounds a statistic itself. Every claim in a re
 | Metricool - Instagram reels | Caption, permalink, reach, views, saves, shares, comments, likes, view rate, average watch time, paid reach, spend | Jan 2024 - now | Retention (IGRE27) returns null, so use IGRE24 and IGRE28 instead. Do not use deprecated IGRE13 or IGRE15 |
 | Metricool - Instagram posts (carousels and images) | Caption, permalink, type, reach, views, saves, shares, comments, likes, paid reach, spend | Jan 2024 - now | Metricool has no separate carousel connector. Carousels and images share the "posts" connector. Field mapping confirmed 23 Sep 2026, see section 4 |
 | Metricool - Instagram stories | Reach, replies, exits, taps forward and back | From connection date onwards only | Excluded from all historical analysis. Reported as live data only |
-| ig-attribution (Supabase) | ManyChat keyword triggers and applications, linked to posts | Wherever attribution data exists | Used for conversion scoring in v1.1. Report how much of the history it covers |
+| ig-attribution (Supabase, `wtm-attribution` project) | Designed to hold ManyChat keyword triggers and applications, linked to posts via `content_registry.media_id` | Effectively none yet. Checked 23 Sep 2026: one real post, `media_id` empty, no comment or application tables exist | Not usable for v1.1 conversion scoring until the ig-attribution system itself is built out further. That's separate work, not part of this build. See section 3 |
 
 ### Known data issues
 
@@ -46,7 +46,7 @@ It never calculates, estimates or rounds a statistic itself. Every claim in a re
 
 ## 3. Step 0 - confirm before building
 
-Status as of 23 Sep 2026: questions 1 and 2 are answered. Question 3 is still open.
+Status as of 23 Sep 2026: all three questions answered. Question 3's answer is that attribution data isn't usable yet, which pushes v1.1 conversion scoring out, but doesn't block v1 (this build).
 
 1. **How Claude Code pulls the data - answered: Option B, the Metricool MCP connector.** Confirmed working in Claude Code (Terminal) on 23 Sep 2026: brand settings, reels pull and available-metrics calls all returned correct data for brand 3304707. No API token or plan upgrade needed for this data.
 
@@ -67,7 +67,14 @@ Status as of 23 Sep 2026: questions 1 and 2 are answered. Question 3 is still op
    Also usable: IGPO01-06 (date, content, post ID, image, URL), IGPO07 (type), IGPO10 (engagement), IGPO12 (interactions organic), IGPO29 (follows), IGPO17/22/23/24/25 (other paid fields).
 
    **Do not use** (Metricool marks these deprecated): IGPO09, IGPO11, IGPO16, IGPO18, IGPO20, IGPO21.
-3. **Attribution join - still open.** Confirm which field links attribution records to posts (permalink, shortcode or media ID), and the date attribution records start.
+3. **Attribution join - answered, and the answer is "not yet usable".** Checked directly in the `wtm-attribution` Supabase project (read-only) on 23 Sep 2026:
+   - **Only one table exists:** `content_registry`, with columns `id`, `slug`, `media_id`, `platform`, `content_type`, `description`, `post_date`, `created_at`.
+   - **It holds two rows total:** one real post (`reel_2026-08-03_tierlist`, posted 3 Aug 2026) and one test row, both created the same day, nothing added since.
+   - **The intended join field is `media_id`** (the numeric Meta ID), but it's empty on both rows, so nothing currently links to a Metricool post.
+   - **No comment-trigger or application tables exist at all.**
+   - **The project itself was created 3 Aug 2026**, so attribution data can't predate that regardless.
+
+   **Conclusion:** attribution isn't ready to join against. v1.1 conversion scoring stays deferred until the ig-attribution system is built out with populated `media_id` values (or permalinks) and comment/application tables. That's separate work, tracked in [[ig-attribution]], not part of this Analyst build. Nothing in Steps 1-8 of this spec (section 11) depends on it.
 
 ---
 
@@ -352,7 +359,7 @@ Each step has a check that must pass before moving on.
 
 | Step | Work | Check before moving on |
 |---|---|---|
-| 0 | Answer the section 3 questions | Done 23 Sep 2026 for questions 1 and 2. Question 3 (attribution join) still open, not blocking the migrations |
+| 0 | Answer the section 3 questions | Done 23 Sep 2026, all three answered. Question 3's answer means v1.1 conversion scoring is deferred, not that anything here is blocked |
 | 1 | Migrations for the section 4 tables (dev) | Edo has reviewed and applied them |
 | 2 | Pull all history from Jan 2024, one month at a time | Monthly post counts roughly match Metricool's web app. The gap months show as gaps. No duplicate permalinks |
 | 3 | Add the section 6 flags | Every example case in section 6 is flagged correctly |
@@ -375,5 +382,5 @@ Each step has a check that must pass before moving on.
 
 1. **App launch date.** Edo to confirm. Currently a March 2026 placeholder.
 2. ~~Metricool API access.~~ Resolved 23 Sep 2026: the MCP connector covers everything needed, on the current plan, no upgrade required.
-3. **Attribution coverage dates.** Needed for the v1.1 conversion scoring. Still open, see section 3.
+3. ~~Attribution coverage dates.~~ Resolved 23 Sep 2026: attribution isn't usable yet (see section 3). v1.1 conversion scoring stays deferred until ig-attribution is built out further. Not a blocker for this spec.
 4. **Human-tagged test sample.** 40 posts need tagging by hand before step 4 can run.
